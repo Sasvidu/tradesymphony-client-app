@@ -1,6 +1,7 @@
-import axios from 'axios';
+import axios from "axios";
 
-const AI_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api';
+const AI_API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api";
 
 interface ReturnExpectationComponent {
   type: string;
@@ -84,12 +85,14 @@ export const tradingApi = {
   startTradeProcess: async (): Promise<string> => {
     try {
       // First, create a trade in our database with a unique processId
-      const processId = `TRADE_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      const dbTrade = await axios.post('/api/trades', { processId });
-      
+      const processId = `TRADE_${Date.now()}_${Math.random()
+        .toString(36)
+        .substring(7)}`;
+      const dbTrade = await axios.post("/api/trades", { processId });
+
       // Then, start the AI trade process
       const response = await axios.post<TradeResponse>(AI_API_URL);
-      if (response.data.status === 'success' && response.data.data) {
+      if (response.data.status === "success" && response.data.data) {
         // Update trade with AI response data
         await axios.put(`/api/trades/${processId}`, {
           ticker: response.data.data.ticker,
@@ -98,24 +101,28 @@ export const tradingApi = {
           subIndustry: response.data.data.industry.subIndustry,
           recommendation: response.data.data.investmentThesis.recommendation,
           conviction: response.data.data.investmentThesis.conviction,
-          expectedReturn: response.data.data.investmentThesis.expectedReturn.value,
-          timeframe: response.data.data.investmentThesis.expectedReturn.timeframe,
+          expectedReturn:
+            response.data.data.investmentThesis.expectedReturn.value,
+          timeframe:
+            response.data.data.investmentThesis.expectedReturn.timeframe,
           riskLevel: response.data.data.investmentThesis.riskAssessment.level,
           keyDrivers: response.data.data.investmentThesis.keyDrivers,
           tradeData: response.data.data,
         });
         return processId;
       }
-      throw new Error('Failed to start trade process');
+      throw new Error("Failed to start trade process");
     } catch (error) {
-      console.error('Error in startTradeProcess:', error);
+      console.error("Error in startTradeProcess:", error);
       throw error;
     }
   },
 
   checkTradeStatus: async (processId: string): Promise<TradeResponse> => {
-    const response = await axios.get<TradeResponse>(`${AI_API_URL}/${processId}`);
-    if (response.data.status === 'success' && response.data.data) {
+    const response = await axios.get<TradeResponse>(
+      `${AI_API_URL}/${processId}`
+    );
+    if (response.data.status === "success" && response.data.data) {
       // Update trade in our database
       await axios.put(`/api/trades/${processId}`, {
         ticker: response.data.data.ticker,
@@ -124,7 +131,8 @@ export const tradingApi = {
         subIndustry: response.data.data.industry.subIndustry,
         recommendation: response.data.data.investmentThesis.recommendation,
         conviction: response.data.data.investmentThesis.conviction,
-        expectedReturn: response.data.data.investmentThesis.expectedReturn.value,
+        expectedReturn:
+          response.data.data.investmentThesis.expectedReturn.value,
         timeframe: response.data.data.investmentThesis.expectedReturn.timeframe,
         riskLevel: response.data.data.investmentThesis.riskAssessment.level,
         keyDrivers: response.data.data.investmentThesis.keyDrivers,
@@ -136,17 +144,25 @@ export const tradingApi = {
 
   // Local database API calls
   getPortfolio: async () => {
-    const response = await axios.get('/api/portfolio');
+    const response = await axios.get("/api/portfolio");
     return response.data;
   },
 
-  updatePortfolio: async (amount: number, type: 'deposit' | 'withdrawal', tradeId?: string) => {
-    const response = await axios.post('/api/portfolio', { amount, type, tradeId });
+  updatePortfolio: async (
+    amount: number,
+    type: "deposit" | "withdrawal",
+    tradeId?: string
+  ) => {
+    const response = await axios.post("/api/portfolio", {
+      amount,
+      type,
+      tradeId,
+    });
     return response.data;
   },
 
   getTrades: async () => {
-    const response = await axios.get('/api/trades');
+    const response = await axios.get("/api/trades");
     return response.data;
   },
 };

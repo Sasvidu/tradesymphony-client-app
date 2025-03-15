@@ -51,3 +51,39 @@ export async function PUT(
     );
   }
 }
+
+export async function GET(
+  request: Request,
+  { params }: { params: { processId: string } }
+) {
+  try {
+    if (!params.processId) {
+      return NextResponse.json(
+        { error: 'Process ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const trade = await prisma.trade.findUnique({
+      where: {
+        processId: params.processId,
+      },
+      include: { transactions: true },
+    });
+
+    if (!trade) {
+      return NextResponse.json(
+        { error: 'Trade not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(trade);
+  } catch (error) {
+    console.error('Error fetching trade:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch trade' },
+      { status: 500 }
+    );
+  }
+}

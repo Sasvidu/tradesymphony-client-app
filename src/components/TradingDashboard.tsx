@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Card, Title, Button, Text } from "@tremor/react";
-import { useQuery, useQueryClient, UseQueryResult } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  UseQueryResult,
+} from "@tanstack/react-query";
 import { PortfolioCard } from "./PortfolioCard";
 import { ActiveTrades } from "./ActiveTrades";
 import { tradingApi } from "../lib/api";
@@ -96,8 +100,10 @@ export function TradingDashboard() {
   useEffect(() => {
     if (tradesData) {
       // Only set trades that are actually in processing state
-      const active = tradesData.filter(trade => 
-        trade.status === "processing" && (!trade.transactions || trade.transactions.length === 0)
+      const active = tradesData.filter(
+        (trade) =>
+          trade.status === "processing" &&
+          (!trade.transactions || trade.transactions.length === 0)
       );
       setActiveTrades(active);
       setAllTrades(tradesData);
@@ -127,14 +133,20 @@ export function TradingDashboard() {
         const checkInterval = setInterval(async () => {
           attempts++;
           try {
-            const response: TradeResponse = await tradingApi.checkTradeStatus(processId);
-            
+            const response: TradeResponse = await tradingApi.checkTradeStatus(
+              processId
+            );
+
             if (response.status === "success" && response.data) {
               clearInterval(checkInterval);
-              
+
               const tradeAmount = Math.min(
-                response.data.investmentRecommendationDetails.positionSizingGuidance.maximumDollarAmount,
-                portfolio.balance * (response.data.investmentRecommendationDetails.positionSizingGuidance.allocationPercentage / 100)
+                response.data.investmentRecommendationDetails
+                  .positionSizingGuidance.maximumDollarAmount,
+                portfolio.balance *
+                  (response.data.investmentRecommendationDetails
+                    .positionSizingGuidance.allocationPercentage /
+                    100)
               );
 
               const transaction: Transaction = {
@@ -145,7 +157,7 @@ export function TradingDashboard() {
                 price: 0,
                 total: tradeAmount,
                 createdAt: new Date().toISOString(),
-                status: "completed"
+                status: "completed",
               };
 
               const updatedTrade: Trade = {
@@ -157,26 +169,36 @@ export function TradingDashboard() {
                 subIndustry: response.data.industry.subIndustry,
                 recommendation: response.data.investmentThesis.recommendation,
                 conviction: response.data.investmentThesis.conviction,
-                expectedReturn: response.data.investmentThesis.expectedReturn.value,
-                timeframe: response.data.investmentThesis.expectedReturn.timeframe,
+                expectedReturn:
+                  response.data.investmentThesis.expectedReturn.value,
+                timeframe:
+                  response.data.investmentThesis.expectedReturn.timeframe,
                 riskLevel: response.data.investmentThesis.riskAssessment.level,
                 buyAmount: tradeAmount,
                 keyDrivers: response.data.investmentThesis.keyDrivers,
                 completedAt: new Date().toISOString(),
-                transactions: [transaction]
+                transactions: [transaction],
               };
 
               // Update portfolio first
-              await tradingApi.updatePortfolio(tradeAmount, "withdrawal", newTrade.id);
-              
+              await tradingApi.updatePortfolio(
+                tradeAmount,
+                "withdrawal",
+                newTrade.id
+              );
+
               // Then update trade states
-              setActiveTrades(prev => prev.filter(t => t.id !== newTrade.id));
-              setAllTrades(prev => prev.map(t => t.id === newTrade.id ? updatedTrade : t));
-              
+              setActiveTrades((prev) =>
+                prev.filter((t) => t.id !== newTrade.id)
+              );
+              setAllTrades((prev) =>
+                prev.map((t) => (t.id === newTrade.id ? updatedTrade : t))
+              );
+
               setPortfolio((prev) => ({
                 ...prev,
                 balance: prev.balance - tradeAmount,
-                totalTrades: prev.totalTrades + 1
+                totalTrades: prev.totalTrades + 1,
               }));
 
               queryClient.invalidateQueries({ queryKey: ["portfolio"] });
@@ -188,10 +210,14 @@ export function TradingDashboard() {
               const failedTrade: Trade = {
                 ...newTrade,
                 status: "failed",
-                completedAt: new Date().toISOString()
+                completedAt: new Date().toISOString(),
               };
-              setActiveTrades(prev => prev.filter(t => t.id !== newTrade.id));
-              setAllTrades(prev => prev.map(t => t.id === newTrade.id ? failedTrade : t));
+              setActiveTrades((prev) =>
+                prev.filter((t) => t.id !== newTrade.id)
+              );
+              setAllTrades((prev) =>
+                prev.map((t) => (t.id === newTrade.id ? failedTrade : t))
+              );
             }
           }
         }, 5000);
@@ -203,7 +229,14 @@ export function TradingDashboard() {
     } catch (error) {
       console.error("Failed to start trade:", error);
     }
-  }, [activeTrades.length, setActiveTrades, setAllTrades, setPortfolio, portfolio.balance, queryClient]);
+  }, [
+    activeTrades.length,
+    setActiveTrades,
+    setAllTrades,
+    setPortfolio,
+    portfolio.balance,
+    queryClient,
+  ]);
 
   // Handle trade status polling
   useEffect(() => {
@@ -211,20 +244,27 @@ export function TradingDashboard() {
       const interval = window.setInterval(async () => {
         for (const trade of activeTrades) {
           // Skip if trade is not in processing state or already has transactions
-          if (trade.status !== "processing" || (trade.transactions && trade.transactions.length > 0)) {
+          if (
+            trade.status !== "processing" ||
+            (trade.transactions && trade.transactions.length > 0)
+          ) {
             continue;
           }
-          
+
           try {
             const response = await tradingApi.checkTradeStatus(trade.processId);
             if (response.data && response.status === "success") {
               const tradeAmount = Math.min(
-                response.data.investmentRecommendationDetails.positionSizingGuidance.maximumDollarAmount,
-                portfolio.balance * (response.data.investmentRecommendationDetails.positionSizingGuidance.allocationPercentage / 100)
+                response.data.investmentRecommendationDetails
+                  .positionSizingGuidance.maximumDollarAmount,
+                portfolio.balance *
+                  (response.data.investmentRecommendationDetails
+                    .positionSizingGuidance.allocationPercentage /
+                    100)
               );
 
               console.log("Creating transaction for trade:", trade.id);
-              
+
               const transaction: Transaction = {
                 id: Math.random().toString(),
                 tradeId: trade.id,
@@ -233,7 +273,7 @@ export function TradingDashboard() {
                 price: 0,
                 total: tradeAmount,
                 createdAt: new Date().toISOString(),
-                status: "completed"
+                status: "completed",
               };
 
               const completedTrade: Trade = {
@@ -245,29 +285,37 @@ export function TradingDashboard() {
                 subIndustry: response.data.industry.subIndustry,
                 recommendation: response.data.investmentThesis.recommendation,
                 conviction: response.data.investmentThesis.conviction,
-                expectedReturn: response.data.investmentThesis.expectedReturn.value,
-                timeframe: response.data.investmentThesis.expectedReturn.timeframe,
+                expectedReturn:
+                  response.data.investmentThesis.expectedReturn.value,
+                timeframe:
+                  response.data.investmentThesis.expectedReturn.timeframe,
                 riskLevel: response.data.investmentThesis.riskAssessment.level,
                 buyAmount: tradeAmount,
                 keyDrivers: response.data.investmentThesis.keyDrivers,
                 completedAt: new Date().toISOString(),
-                transactions: [transaction]
+                transactions: [transaction],
               };
 
               console.log("Completing trade:", trade.id);
 
               // Update portfolio first
-              await tradingApi.updatePortfolio(tradeAmount, "withdrawal", trade.id);
-              
+              await tradingApi.updatePortfolio(
+                tradeAmount,
+                "withdrawal",
+                trade.id
+              );
+
               // Then update trade states - ensure we remove from active trades
-              setActiveTrades(prev => prev.filter(t => t.id !== trade.id));
-              setAllTrades(prev => prev.map(t => t.id === trade.id ? completedTrade : t));
-              
+              setActiveTrades((prev) => prev.filter((t) => t.id !== trade.id));
+              setAllTrades((prev) =>
+                prev.map((t) => (t.id === trade.id ? completedTrade : t))
+              );
+
               // Update portfolio state
               setPortfolio((prev) => ({
                 ...prev,
                 balance: prev.balance - tradeAmount,
-                totalTrades: prev.totalTrades + 1
+                totalTrades: prev.totalTrades + 1,
               }));
 
               // Force refresh both queries to ensure states are in sync
@@ -275,7 +323,10 @@ export function TradingDashboard() {
               await queryClient.invalidateQueries({ queryKey: ["trades"] });
             }
           } catch (error) {
-            console.error(`Error checking trade status for ${trade.processId}:`, error);
+            console.error(
+              `Error checking trade status for ${trade.processId}:`,
+              error
+            );
           }
         }
       }, 5000);
@@ -286,7 +337,15 @@ export function TradingDashboard() {
         setPollingInterval(null);
       };
     }
-  }, [isTrading, activeTrades, queryClient, setActiveTrades, setAllTrades, portfolio.balance, setPortfolio]);
+  }, [
+    isTrading,
+    activeTrades,
+    queryClient,
+    setActiveTrades,
+    setAllTrades,
+    portfolio.balance,
+    setPortfolio,
+  ]);
 
   const startTrading = async () => {
     try {
@@ -312,17 +371,25 @@ export function TradingDashboard() {
     if (!isTrading) {
       Object.entries(tradeTimeouts.current).forEach(([tradeId, timeouts]) => {
         timeouts.forEach(clearTimeout);
-        setActiveTrades((prev: Trade[]) => 
-          prev.map(t => 
-            t.id === tradeId && t.status === "processing" 
-              ? { ...t, status: "failed", completedAt: new Date().toISOString() } 
+        setActiveTrades((prev: Trade[]) =>
+          prev.map((t) =>
+            t.id === tradeId && t.status === "processing"
+              ? {
+                  ...t,
+                  status: "failed",
+                  completedAt: new Date().toISOString(),
+                }
               : t
           )
         );
-        setAllTrades((prev: Trade[]) => 
-          prev.map(t => 
-            t.id === tradeId && t.status === "processing" 
-              ? { ...t, status: "failed", completedAt: new Date().toISOString() } 
+        setAllTrades((prev: Trade[]) =>
+          prev.map((t) =>
+            t.id === tradeId && t.status === "processing"
+              ? {
+                  ...t,
+                  status: "failed",
+                  completedAt: new Date().toISOString(),
+                }
               : t
           )
         );
@@ -336,7 +403,7 @@ export function TradingDashboard() {
     if (!isTrading) return;
 
     const interval = setInterval(() => {
-      if (activeTrades.filter(t => t.status === "processing").length < 3) {
+      if (activeTrades.filter((t) => t.status === "processing").length < 3) {
         startNewTrade();
       }
     }, 3000);
@@ -352,7 +419,7 @@ export function TradingDashboard() {
         className="max-w-7xl mx-auto"
       >
         <div className="flex items-center justify-between mb-8">
-          <motion.h1 
+          <motion.h1
             className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -385,7 +452,9 @@ export function TradingDashboard() {
             <PortfolioCard
               balance={portfolio.balance}
               totalTrades={portfolio.totalTrades}
-              activeTradesCount={activeTrades.filter(t => t.status === "processing").length}
+              activeTradesCount={
+                activeTrades.filter((t) => t.status === "processing").length
+              }
             />
           </motion.div>
 
@@ -426,21 +495,21 @@ export function TradingDashboard() {
                       </p>
                     </div>
                     <div className="flex items-center space-x-4">
-                      {trade.buyAmount && (
+                      {trade.transactions && trade.transactions.length > 0 && (
                         <p className="text-purple-400">
-                          ${trade.buyAmount.toLocaleString()}
+                          ${trade.transactions?.map(t => t.amount).reduce((a, b) => a + b, 0).toFixed(2)}
                         </p>
                       )}
                       <span
                         className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          trade.status === "completed"
+                          trade.status === "completed" || (trade.transactions && trade.transactions.length > 0)
                             ? "bg-emerald-500/20 text-emerald-400"
                             : trade.status === "failed"
                             ? "bg-red-500/20 text-red-400"
                             : "bg-purple-500/20 text-purple-400"
                         }`}
                       >
-                        {trade.status}
+                        {trade.transactions && trade.transactions.length > 0 ? `completed` : trade.status}
                       </span>
                     </div>
                   </div>
