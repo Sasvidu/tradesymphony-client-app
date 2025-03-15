@@ -22,6 +22,19 @@ export async function PUT(
       );
     }
 
+    // First get the current trade
+    const currentTrade = await prisma.trade.findUnique({
+      where: {
+        processId: params.processId,
+      },
+      include: { transactions: true },
+    });
+
+    // If trade is completed, don't allow status changes
+    if (currentTrade?.status === 'completed') {
+      delete data.status;
+    }
+
     const trade = await prisma.trade.update({
       where: {
         processId: params.processId,

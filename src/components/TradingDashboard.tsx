@@ -95,7 +95,10 @@ export function TradingDashboard() {
 
   useEffect(() => {
     if (tradesData) {
-      const active = tradesData.filter((trade) => trade.status === "processing");
+      // Only set trades that are actually in processing state
+      const active = tradesData.filter(trade => 
+        trade.status === "processing" && (!trade.transactions || trade.transactions.length === 0)
+      );
       setActiveTrades(active);
       setAllTrades(tradesData);
     }
@@ -207,7 +210,10 @@ export function TradingDashboard() {
     if (isTrading && activeTrades.length > 0) {
       const interval = window.setInterval(async () => {
         for (const trade of activeTrades) {
-          if (trade.status !== "processing") continue; // Skip non-processing trades
+          // Skip if trade is not in processing state or already has transactions
+          if (trade.status !== "processing" || (trade.transactions && trade.transactions.length > 0)) {
+            continue;
+          }
           
           try {
             const response = await tradingApi.checkTradeStatus(trade.processId);
@@ -217,57 +223,56 @@ export function TradingDashboard() {
                 portfolio.balance * (response.data.investmentRecommendationDetails.positionSizingGuidance.allocationPercentage / 100)
               );
 
-              // Only create transaction if trade is processing and has no transactions
-              if (!trade.transactions || trade.transactions.length === 0) {
-                console.log("Creating transaction for trade:", trade.id);
-                
-                const transaction: Transaction = {
-                  id: Math.random().toString(),
-                  tradeId: trade.id,
-                  type: "buy",
-                  amount: tradeAmount,
-                  price: 0,
-                  total: tradeAmount,
-                  createdAt: new Date().toISOString(),
-                  status: "completed"
-                };
+              console.log("Creating transaction for trade:", trade.id);
+              
+              const transaction: Transaction = {
+                id: Math.random().toString(),
+                tradeId: trade.id,
+                type: "buy",
+                amount: tradeAmount,
+                price: 0,
+                total: tradeAmount,
+                createdAt: new Date().toISOString(),
+                status: "completed"
+              };
 
-                const completedTrade: Trade = {
-                  ...trade,
-                  status: "completed",
-                  ticker: response.data.ticker,
-                  name: response.data.name,
-                  sector: response.data.industry.sector,
-                  subIndustry: response.data.industry.subIndustry,
-                  recommendation: response.data.investmentThesis.recommendation,
-                  conviction: response.data.investmentThesis.conviction,
-                  expectedReturn: response.data.investmentThesis.expectedReturn.value,
-                  timeframe: response.data.investmentThesis.expectedReturn.timeframe,
-                  riskLevel: response.data.investmentThesis.riskAssessment.level,
-                  buyAmount: tradeAmount,
-                  keyDrivers: response.data.investmentThesis.keyDrivers,
-                  completedAt: new Date().toISOString(),
-                  transactions: [transaction]
-                };
+              const completedTrade: Trade = {
+                ...trade,
+                status: "completed",
+                ticker: response.data.ticker,
+                name: response.data.name,
+                sector: response.data.industry.sector,
+                subIndustry: response.data.industry.subIndustry,
+                recommendation: response.data.investmentThesis.recommendation,
+                conviction: response.data.investmentThesis.conviction,
+                expectedReturn: response.data.investmentThesis.expectedReturn.value,
+                timeframe: response.data.investmentThesis.expectedReturn.timeframe,
+                riskLevel: response.data.investmentThesis.riskAssessment.level,
+                buyAmount: tradeAmount,
+                keyDrivers: response.data.investmentThesis.keyDrivers,
+                completedAt: new Date().toISOString(),
+                transactions: [transaction]
+              };
 
-                console.log("Completing trade:", trade.id);
+              console.log("Completing trade:", trade.id);
 
-                // Update portfolio first
-                await tradingApi.updatePortfolio(tradeAmount, "withdrawal", trade.id);
-                
-                // Then update trade states
-                setActiveTrades(prev => prev.filter(t => t.id !== trade.id));
-                setAllTrades(prev => prev.map(t => t.id === trade.id ? completedTrade : t));
-                
-                setPortfolio((prev) => ({
-                  ...prev,
-                  balance: prev.balance - tradeAmount,
-                  totalTrades: prev.totalTrades + 1
-                }));
+              // Update portfolio first
+              await tradingApi.updatePortfolio(tradeAmount, "withdrawal", trade.id);
+              
+              // Then update trade states - ensure we remove from active trades
+              setActiveTrades(prev => prev.filter(t => t.id !== trade.id));
+              setAllTrades(prev => prev.map(t => t.id === trade.id ? completedTrade : t));
+              
+              // Update portfolio state
+              setPortfolio((prev) => ({
+                ...prev,
+                balance: prev.balance - tradeAmount,
+                totalTrades: prev.totalTrades + 1
+              }));
 
-                queryClient.invalidateQueries({ queryKey: ["portfolio"] });
-                queryClient.invalidateQueries({ queryKey: ["trades"] });
-              }
+              // Force refresh both queries to ensure states are in sync
+              await queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+              await queryClient.invalidateQueries({ queryKey: ["trades"] });
             }
           } catch (error) {
             console.error(`Error checking trade status for ${trade.processId}:`, error);
