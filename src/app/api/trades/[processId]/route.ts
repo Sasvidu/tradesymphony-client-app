@@ -1,42 +1,35 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '~/lib/prisma';
+import { Prisma } from '@prisma/client';
+
+const tradeWithTransactions = Prisma.validator<Prisma.TradeDefaultArgs>()({
+  include: { transactions: true },
+});
+
+type TradeWithTransactions = Prisma.TradeGetPayload<typeof tradeWithTransactions>;
 
 export async function PUT(
   request: Request,
   { params }: { params: { processId: string } }
 ) {
   try {
-    const { processId } = params;
     const data = await request.json();
-
-    const trade = await prisma.trade.findUnique({
-      where: { processId },
-    });
-
-    if (!trade) {
+    
+    if (!params.processId) {
       return NextResponse.json(
-        { error: 'Trade not found' },
-        { status: 404 }
+        { error: 'Process ID is required' },
+        { status: 400 }
       );
     }
 
-    const updatedTrade = await prisma.trade.update({
-      where: { processId },
-      data: {
-        status: 'completed',
-        ticker: data.ticker,
-        name: data.name,
-        recommendation: data.investmentThesis?.recommendation,
-        buyPrice: data.currentPrice,
-        expectedReturn: data.investmentThesis?.expectedReturn?.value,
-        timeframe: data.investmentThesis?.expectedReturn?.timeframe,
-        riskLevel: data.investmentThesis?.riskAssessment?.level,
-        completedAt: new Date(),
-        tradeData: data,
+    const trade = await prisma.trade.update({
+      where: {
+        processId: params.processId,
       },
+      data,
+      include: { transactions: true },
     });
-
-    return NextResponse.json(updatedTrade);
+    return NextResponse.json(trade);
   } catch (error) {
     console.error('Error updating trade:', error);
     return NextResponse.json(

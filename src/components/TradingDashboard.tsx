@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Card, Title, Button } from "@tremor/react";
-import { useQuery, UseQueryResult } from "@tanstack/react-query";
+import { Card, Title, Button, Text } from "@tremor/react";
+import { useQuery, useQueryClient, UseQueryResult } from "@tanstack/react-query";
 import { PortfolioCard } from "./PortfolioCard";
 import { ActiveTrades } from "./ActiveTrades";
 import { tradingApi } from "../lib/api";
-import { useTradingContext, Trade } from "./TradingContext";
+import { useTradingContext, Trade, Transaction } from "./TradingContext";
+import { useRouter } from "next/navigation";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
 
 interface Portfolio {
   id: string;
@@ -17,21 +19,62 @@ interface Portfolio {
   updatedAt: string;
 }
 
+interface TradeResponse {
+  status: string;
+  message: string;
+  data: {
+    name: string;
+    ticker: string;
+    industry: {
+      sector: string;
+      subIndustry: string;
+    };
+    investmentThesis: {
+      recommendation: string;
+      conviction: string;
+      keyDrivers: string[];
+      expectedReturn: {
+        value: number;
+        timeframe: string;
+      };
+      riskAssessment: {
+        level: string;
+      };
+    };
+    investmentRecommendationDetails: {
+      positionSizingGuidance: {
+        allocationPercentage: number;
+        maximumDollarAmount: number;
+        minimumDollarAmount: number;
+      };
+    };
+  };
+}
+
 export function TradingDashboard() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const {
     activeTrades,
-    setActiveTrades,
+    allTrades,
     portfolio,
-    setPortfolio,
     isTrading,
+    setActiveTrades,
+    setAllTrades,
+    setPortfolio,
     setIsTrading,
   } = useTradingContext();
+
+  const [pollingInterval, setPollingInterval] = useState<number | null>(null);
+
+  // Track trade timeouts
+  const tradeTimeouts = useRef<{ [key: string]: NodeJS.Timeout[] }>({});
 
   // Fetch portfolio data
   const { data: portfolioData }: UseQueryResult<Portfolio> = useQuery({
     queryKey: ["portfolio"],
     queryFn: () => tradingApi.getPortfolio() as Promise<Portfolio>,
-    refetchInterval: 5000,
+    refetchInterval: isTrading ? 5000 : false,
   });
 
   useEffect(() => {
@@ -43,21 +86,20 @@ export function TradingDashboard() {
     }
   }, [portfolioData, setPortfolio]);
 
-  // Fetch active trades
+  // Fetch all trades
   const { data: tradesData }: UseQueryResult<Trade[]> = useQuery({
     queryKey: ["trades"],
     queryFn: () => tradingApi.getTrades() as Promise<Trade[]>,
-    refetchInterval: 3000,
+    refetchInterval: isTrading ? 5000 : false,
   });
 
   useEffect(() => {
     if (tradesData) {
-      const activeTrades = tradesData.filter(
-        (trade: Trade) => trade.status === "processing"
-      );
-      setActiveTrades(activeTrades);
+      const active = tradesData.filter((trade) => trade.status === "processing");
+      setActiveTrades(active);
+      setAllTrades(tradesData);
     }
-  }, [tradesData, setActiveTrades]);
+  }, [tradesData, setActiveTrades, setAllTrades]);
 
   const startNewTrade = useCallback(async () => {
     if (activeTrades.length >= 3) return;
@@ -68,61 +110,185 @@ export function TradingDashboard() {
         id: Math.random().toString(),
         processId,
         status: "processing",
+        createdAt: new Date().toISOString(),
       };
 
-      setActiveTrades((prev) => [...prev, newTrade]);
-    } catch (error) {
-      console.error("Failed to start trade:", error);
-    }
-  }, [activeTrades.length, setActiveTrades]);
+      setActiveTrades((prev: Trade[]) => [...prev, newTrade]);
+      setAllTrades((prev: Trade[]) => [...prev, newTrade]);
 
-  useEffect(() => {
-    if (!isTrading) return;
+      // Wait 1 minute before starting to check
+      const initialTimeout = setTimeout(async () => {
+        let attempts = 0;
+        const maxAttempts = 24; // 2 minutes with 5-second intervals
 
-    const interval = setInterval(async () => {
-      const updatedTrades = await Promise.all(
-        activeTrades.map(async (trade: Trade) => {
-          if (trade.status === "completed") return trade;
-
+        const checkInterval = setInterval(async () => {
+          attempts++;
           try {
-            const response = await tradingApi.checkTradeStatus(trade.processId);
+            const response: TradeResponse = await tradingApi.checkTradeStatus(processId);
+            
             if (response.status === "success" && response.data) {
-              // Update portfolio when trade completes
-              if (trade.status === "processing") {
-                setPortfolio((prev) => ({
-                  ...prev,
-                  totalTrades: prev.totalTrades + 1,
-                }));
-              }
+              clearInterval(checkInterval);
+              
+              const tradeAmount = Math.min(
+                response.data.investmentRecommendationDetails.positionSizingGuidance.maximumDollarAmount,
+                portfolio.balance * (response.data.investmentRecommendationDetails.positionSizingGuidance.allocationPercentage / 100)
+              );
 
-              return {
-                ...trade,
+              const transaction: Transaction = {
+                id: Math.random().toString(),
+                tradeId: newTrade.id,
+                type: "buy",
+                amount: tradeAmount,
+                price: 0, // This would come from real market data
+                total: tradeAmount,
+                createdAt: new Date().toISOString(),
+                status: "completed"
+              };
+
+              const updatedTrade: Trade = {
+                ...newTrade,
                 status: "completed",
                 ticker: response.data.ticker,
                 name: response.data.name,
-                recommendation: response.data.investmentThesis?.recommendation,
+                sector: response.data.industry.sector,
+                subIndustry: response.data.industry.subIndustry,
+                recommendation: response.data.investmentThesis.recommendation,
+                conviction: response.data.investmentThesis.conviction,
+                expectedReturn: response.data.investmentThesis.expectedReturn.value,
+                timeframe: response.data.investmentThesis.expectedReturn.timeframe,
+                riskLevel: response.data.investmentThesis.riskAssessment.level,
+                buyAmount: tradeAmount,
+                keyDrivers: response.data.investmentThesis.keyDrivers,
+                completedAt: new Date().toISOString(),
+                transactions: [transaction]
               };
+
+              setActiveTrades((prev: Trade[]) => 
+                prev.map(t => t.id === newTrade.id ? updatedTrade : t)
+              );
+              setAllTrades((prev: Trade[]) => 
+                prev.map(t => t.id === newTrade.id ? updatedTrade : t)
+              );
+              setPortfolio((prev) => ({
+                ...prev,
+                balance: prev.balance - tradeAmount,
+                totalTrades: prev.totalTrades + 1
+              }));
             }
           } catch (error) {
             console.error("Error checking trade status:", error);
           }
-          return trade;
-        })
-      );
 
-      setActiveTrades(updatedTrades);
+          if (attempts >= maxAttempts) {
+            clearInterval(checkInterval);
+            const failedTrade: Trade = {
+              ...newTrade,
+              status: "failed",
+              completedAt: new Date().toISOString()
+            };
+            setActiveTrades((prev: Trade[]) => 
+              prev.map(t => t.id === newTrade.id ? failedTrade : t)
+            );
+            setAllTrades((prev: Trade[]) => 
+              prev.map(t => t.id === newTrade.id ? failedTrade : t)
+            );
+          }
+        }, 5000);
 
-      // Start new trade if we have less than 3 active trades
-      if (updatedTrades.filter((t) => t.status === "processing").length < 3) {
+        tradeTimeouts.current[newTrade.id] = [initialTimeout, checkInterval];
+      }, 60000);
+
+      tradeTimeouts.current[newTrade.id] = [initialTimeout];
+    } catch (error) {
+      console.error("Failed to start trade:", error);
+    }
+  }, [activeTrades.length, setActiveTrades, setAllTrades, setPortfolio, portfolio.balance]);
+
+  // Handle trade status polling
+  useEffect(() => {
+    if (isTrading && activeTrades.length > 0) {
+      const interval = window.setInterval(async () => {
+        for (const trade of activeTrades) {
+          try {
+            const response = await tradingApi.checkTradeStatus(trade.processId);
+            if (response.data) {
+              // Update portfolio balance if trade is completed
+              if (response.status === "success" && trade.status === "processing") {
+                const buyAmount = trade.buyAmount || 0;
+                await tradingApi.updatePortfolio(buyAmount, "withdrawal");
+                queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+              }
+            }
+          } catch (error) {
+            console.error(`Error checking trade status for ${trade.processId}:`, error);
+          }
+        }
+        // Refresh trades data
+        queryClient.invalidateQueries({ queryKey: ["trades"] });
+      }, 5000);
+
+      setPollingInterval(interval);
+      return () => {
+        if (interval) window.clearInterval(interval);
+      };
+    }
+  }, [isTrading, activeTrades, queryClient]);
+
+  const startTrading = async () => {
+    try {
+      setIsTrading(true);
+      const processId = await tradingApi.startTradeProcess();
+      queryClient.invalidateQueries({ queryKey: ["trades"] });
+    } catch (error) {
+      console.error("Error starting trade:", error);
+      setIsTrading(false);
+    }
+  };
+
+  const stopTrading = () => {
+    setIsTrading(false);
+    if (pollingInterval) {
+      window.clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+  };
+
+  // Clean up trades when stopping
+  useEffect(() => {
+    if (!isTrading) {
+      Object.entries(tradeTimeouts.current).forEach(([tradeId, timeouts]) => {
+        timeouts.forEach(clearTimeout);
+        setActiveTrades((prev: Trade[]) => 
+          prev.map(t => 
+            t.id === tradeId && t.status === "processing" 
+              ? { ...t, status: "failed", completedAt: new Date().toISOString() } 
+              : t
+          )
+        );
+        setAllTrades((prev: Trade[]) => 
+          prev.map(t => 
+            t.id === tradeId && t.status === "processing" 
+              ? { ...t, status: "failed", completedAt: new Date().toISOString() } 
+              : t
+          )
+        );
+      });
+      tradeTimeouts.current = {};
+    }
+  }, [isTrading, setActiveTrades, setAllTrades]);
+
+  // Start new trades when possible
+  useEffect(() => {
+    if (!isTrading) return;
+
+    const interval = setInterval(() => {
+      if (activeTrades.filter(t => t.status === "processing").length < 3) {
         startNewTrade();
       }
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [isTrading, activeTrades, setActiveTrades, setPortfolio, startNewTrade]);
-
-  const defaultBalance = 100000;
-  const defaultTotalTrades = 0;
+  }, [isTrading, activeTrades, startNewTrade]);
 
   return (
     <div className="min-h-screen p-8 space-y-8">
@@ -144,7 +310,7 @@ export function TradingDashboard() {
             animate={{ opacity: 1, x: 0 }}
           >
             <Button
-              onClick={() => setIsTrading((prev) => !prev)}
+              onClick={() => setIsTrading(!isTrading)}
               className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
                 isTrading
                   ? "bg-red-500 hover:bg-red-600 text-white"
@@ -163,9 +329,9 @@ export function TradingDashboard() {
             transition={{ delay: 0.1 }}
           >
             <PortfolioCard
-              balance={portfolioData?.balance ?? defaultBalance}
-              totalTrades={portfolioData?.totalTrades ?? defaultTotalTrades}
-              activeTradesCount={activeTrades.length}
+              balance={portfolio.balance}
+              totalTrades={portfolio.totalTrades}
+              activeTradesCount={activeTrades.filter(t => t.status === "processing").length}
             />
           </motion.div>
 
@@ -177,6 +343,58 @@ export function TradingDashboard() {
             <ActiveTrades trades={activeTrades} />
           </motion.div>
         </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mt-8"
+        >
+          <Card className="glass-card hover-scale purple-glow">
+            <Title className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent mb-6">
+              Trade History
+            </Title>
+            <div className="space-y-4">
+              {allTrades.map((trade) => (
+                <motion.div
+                  key={trade.id}
+                  className="p-4 glass-card rounded-xl border border-purple-500/10 cursor-pointer hover:border-purple-500/30 transition-all"
+                  onClick={() => router.push(`/trade/${trade.id}`)}
+                  whileHover={{ scale: 1.01 }}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-lg font-semibold text-white">
+                        {trade.ticker || "Processing..."}
+                      </p>
+                      <p className="text-sm text-gray-400">
+                        {new Date(trade.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      {trade.buyAmount && (
+                        <p className="text-purple-400">
+                          ${trade.buyAmount.toLocaleString()}
+                        </p>
+                      )}
+                      <span
+                        className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          trade.status === "completed"
+                            ? "bg-emerald-500/20 text-emerald-400"
+                            : trade.status === "failed"
+                            ? "bg-red-500/20 text-red-400"
+                            : "bg-purple-500/20 text-purple-400"
+                        }`}
+                      >
+                        {trade.status}
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </Card>
+        </motion.div>
       </motion.div>
     </div>
   );

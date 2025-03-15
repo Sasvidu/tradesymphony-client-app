@@ -14,32 +14,43 @@ datasource db {
 }
 
 model Portfolio {
-  id        String   @id @default(uuid())
-  balance   Float    @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(uuid())
+  balance     Float    @default(100000)
+  totalTrades Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Trade {
   id            String    @id @default(uuid())
   processId     String    @unique
-  status        String    @default("processing") // processing, completed
+  status        String    // processing, completed, failed
   ticker        String?
   name          String?
+  sector        String?
+  subIndustry   String?
   recommendation String?
   conviction    String?
-  buyPrice      Float?
   expectedReturn Float?
   timeframe     String?
   riskLevel     String?
+  buyAmount     Float?
+  buyPrice      Float?
+  keyDrivers    String[]  @default([])
   createdAt     DateTime  @default(now())
   completedAt   DateTime?
-  tradeData     Json?     // Store the complete API response
+  tradeData     Json?    // Store the complete response
+  transactions  Transaction[]
 }
 
 model Transaction {
-  id        String   @id @default(uuid())
-  type      String   // deposit, withdrawal
-  amount    Float
-  createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  tradeId     String
+  trade       Trade    @relation(fields: [tradeId], references: [id])
+  type        String   // buy, sell
+  amount      Float
+  price       Float
+  total       Float
+  createdAt   DateTime @default(now())
+  status      String   // pending, completed, failed
 }

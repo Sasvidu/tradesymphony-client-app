@@ -7,6 +7,11 @@ const TradingDashboard = dynamic(
   { ssr: false }
 );
 
+/**
+ * Home component serves as the main entry point for the application.
+ * It wraps the TradingDashboard with the TradingProvider to provide
+ * the necessary context for trading operations.
+ */
 export default function Home() {
   return (
     <main className="min-h-screen py-8">
