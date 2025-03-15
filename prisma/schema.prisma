@@ -1,0 +1,45 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Portfolio {
+  id        String   @id @default(uuid())
+  balance   Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Trade {
+  id            String    @id @default(uuid())
+  processId     String    @unique
+  status        String    @default("processing") // processing, completed
+  ticker        String?
+  name          String?
+  recommendation String?
+  conviction    String?
+  buyPrice      Float?
+  expectedReturn Float?
+  timeframe     String?
+  riskLevel     String?
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+  tradeData     Json?     // Store the complete API response
+}
+
+model Transaction {
+  id        String   @id @default(uuid())
+  type      String   // deposit, withdrawal
+  amount    Float
+  createdAt DateTime @default(now())
+}
