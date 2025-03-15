@@ -214,8 +214,8 @@ export function TradingDashboard() {
             if (response.data) {
               // Update portfolio balance if trade is completed
               if (response.status === "success" && trade.status === "processing") {
-                const buyAmount = trade.buyAmount || 0;
-                await tradingApi.updatePortfolio(buyAmount, "withdrawal");
+                const buyAmount = trade.buyAmount || 1000;
+                await tradingApi.updatePortfolio(buyAmount, "withdrawal", trade.id);
                 queryClient.invalidateQueries({ queryKey: ["portfolio"] });
               }
             }

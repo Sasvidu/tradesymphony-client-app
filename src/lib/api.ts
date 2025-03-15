@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const AI_API_URL = process.env.API_URL || 'http://localhost:5050/api';
+const AI_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api';
 
 interface ReturnExpectationComponent {
   type: string;
@@ -140,8 +140,8 @@ export const tradingApi = {
     return response.data;
   },
 
-  updatePortfolio: async (amount: number, type: 'deposit' | 'withdrawal') => {
-    const response = await axios.post('/api/portfolio', { amount, type });
+  updatePortfolio: async (amount: number, type: 'deposit' | 'withdrawal', tradeId?: string) => {
+    const response = await axios.post('/api/portfolio', { amount, type, tradeId });
     return response.data;
   },
 
