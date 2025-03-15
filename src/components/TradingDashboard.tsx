@@ -139,7 +139,7 @@ export function TradingDashboard() {
                 tradeId: newTrade.id,
                 type: "buy",
                 amount: tradeAmount,
-                price: 0, // This would come from real market data
+                price: 0,
                 total: tradeAmount,
                 createdAt: new Date().toISOString(),
                 status: "completed"
@@ -163,35 +163,33 @@ export function TradingDashboard() {
                 transactions: [transaction]
               };
 
-              setActiveTrades((prev: Trade[]) => 
-                prev.map(t => t.id === newTrade.id ? updatedTrade : t)
-              );
-              setAllTrades((prev: Trade[]) => 
-                prev.map(t => t.id === newTrade.id ? updatedTrade : t)
-              );
+              // Update portfolio first
+              await tradingApi.updatePortfolio(tradeAmount, "withdrawal", newTrade.id);
+              
+              // Then update trade states
+              setActiveTrades(prev => prev.filter(t => t.id !== newTrade.id));
+              setAllTrades(prev => prev.map(t => t.id === newTrade.id ? updatedTrade : t));
+              
               setPortfolio((prev) => ({
                 ...prev,
                 balance: prev.balance - tradeAmount,
                 totalTrades: prev.totalTrades + 1
               }));
+
+              queryClient.invalidateQueries({ queryKey: ["portfolio"] });
             }
           } catch (error) {
             console.error("Error checking trade status:", error);
-          }
-
-          if (attempts >= maxAttempts) {
-            clearInterval(checkInterval);
-            const failedTrade: Trade = {
-              ...newTrade,
-              status: "failed",
-              completedAt: new Date().toISOString()
-            };
-            setActiveTrades((prev: Trade[]) => 
-              prev.map(t => t.id === newTrade.id ? failedTrade : t)
-            );
-            setAllTrades((prev: Trade[]) => 
-              prev.map(t => t.id === newTrade.id ? failedTrade : t)
-            );
+            if (attempts >= maxAttempts) {
+              clearInterval(checkInterval);
+              const failedTrade: Trade = {
+                ...newTrade,
+                status: "failed",
+                completedAt: new Date().toISOString()
+              };
+              setActiveTrades(prev => prev.filter(t => t.id !== newTrade.id));
+              setAllTrades(prev => prev.map(t => t.id === newTrade.id ? failedTrade : t));
+            }
           }
         }, 5000);
 
@@ -202,37 +200,88 @@ export function TradingDashboard() {
     } catch (error) {
       console.error("Failed to start trade:", error);
     }
-  }, [activeTrades.length, setActiveTrades, setAllTrades, setPortfolio, portfolio.balance]);
+  }, [activeTrades.length, setActiveTrades, setAllTrades, setPortfolio, portfolio.balance, queryClient]);
 
   // Handle trade status polling
   useEffect(() => {
     if (isTrading && activeTrades.length > 0) {
       const interval = window.setInterval(async () => {
         for (const trade of activeTrades) {
+          if (trade.status !== "processing") continue; // Skip non-processing trades
+          
           try {
             const response = await tradingApi.checkTradeStatus(trade.processId);
-            if (response.data) {
-              // Update portfolio balance if trade is completed
-              if (response.status === "success" && trade.status === "processing") {
-                const buyAmount = trade.buyAmount || 1000;
-                await tradingApi.updatePortfolio(buyAmount, "withdrawal", trade.id);
+            if (response.data && response.status === "success") {
+              const tradeAmount = Math.min(
+                response.data.investmentRecommendationDetails.positionSizingGuidance.maximumDollarAmount,
+                portfolio.balance * (response.data.investmentRecommendationDetails.positionSizingGuidance.allocationPercentage / 100)
+              );
+
+              // Only create transaction if trade is processing and has no transactions
+              if (!trade.transactions || trade.transactions.length === 0) {
+                console.log("Creating transaction for trade:", trade.id);
+                
+                const transaction: Transaction = {
+                  id: Math.random().toString(),
+                  tradeId: trade.id,
+                  type: "buy",
+                  amount: tradeAmount,
+                  price: 0,
+                  total: tradeAmount,
+                  createdAt: new Date().toISOString(),
+                  status: "completed"
+                };
+
+                const completedTrade: Trade = {
+                  ...trade,
+                  status: "completed",
+                  ticker: response.data.ticker,
+                  name: response.data.name,
+                  sector: response.data.industry.sector,
+                  subIndustry: response.data.industry.subIndustry,
+                  recommendation: response.data.investmentThesis.recommendation,
+                  conviction: response.data.investmentThesis.conviction,
+                  expectedReturn: response.data.investmentThesis.expectedReturn.value,
+                  timeframe: response.data.investmentThesis.expectedReturn.timeframe,
+                  riskLevel: response.data.investmentThesis.riskAssessment.level,
+                  buyAmount: tradeAmount,
+                  keyDrivers: response.data.investmentThesis.keyDrivers,
+                  completedAt: new Date().toISOString(),
+                  transactions: [transaction]
+                };
+
+                console.log("Completing trade:", trade.id);
+
+                // Update portfolio first
+                await tradingApi.updatePortfolio(tradeAmount, "withdrawal", trade.id);
+                
+                // Then update trade states
+                setActiveTrades(prev => prev.filter(t => t.id !== trade.id));
+                setAllTrades(prev => prev.map(t => t.id === trade.id ? completedTrade : t));
+                
+                setPortfolio((prev) => ({
+                  ...prev,
+                  balance: prev.balance - tradeAmount,
+                  totalTrades: prev.totalTrades + 1
+                }));
+
                 queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+                queryClient.invalidateQueries({ queryKey: ["trades"] });
               }
             }
           } catch (error) {
             console.error(`Error checking trade status for ${trade.processId}:`, error);
           }
         }
-        // Refresh trades data
-        queryClient.invalidateQueries({ queryKey: ["trades"] });
       }, 5000);
 
       setPollingInterval(interval);
       return () => {
         if (interval) window.clearInterval(interval);
+        setPollingInterval(null);
       };
     }
-  }, [isTrading, activeTrades, queryClient]);
+  }, [isTrading, activeTrades, queryClient, setActiveTrades, setAllTrades, portfolio.balance, setPortfolio]);
 
   const startTrading = async () => {
     try {
