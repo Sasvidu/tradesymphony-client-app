@@ -125,32 +125,59 @@ export function TradingDashboard() {
   const defaultTotalTrades = 0;
 
   return (
-    <div className="max-w-6xl mx-auto p-4 space-y-6">
+    <div className="min-h-screen p-8 space-y-8">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="grid grid-cols-1 md:grid-cols-2 gap-6"
+        className="max-w-7xl mx-auto"
       >
-        <PortfolioCard
-          balance={portfolioData?.balance ?? defaultBalance}
-          totalTrades={portfolioData?.totalTrades ?? defaultTotalTrades}
-          activeTradesCount={activeTrades.length}
-        />
-        <Card className="bg-white shadow-md">
-          <Title>Trading Controls</Title>
-          <div className="mt-4">
+        <div className="flex items-center justify-between mb-8">
+          <motion.h1 
+            className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+          >
+            TradeSymphony
+          </motion.h1>
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+          >
             <Button
               onClick={() => setIsTrading((prev) => !prev)}
-              color={isTrading ? "red" : "blue"}
-              className="w-full"
+              className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
+                isTrading
+                  ? "bg-red-500 hover:bg-red-600 text-white"
+                  : "bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 text-white"
+              }`}
             >
               {isTrading ? "Stop Trading" : "Start Trading"}
             </Button>
-          </div>
-        </Card>
-      </motion.div>
+          </motion.div>
+        </div>
 
-      <ActiveTrades trades={activeTrades} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <PortfolioCard
+              balance={portfolioData?.balance ?? defaultBalance}
+              totalTrades={portfolioData?.totalTrades ?? defaultTotalTrades}
+              activeTradesCount={activeTrades.length}
+            />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <ActiveTrades trades={activeTrades} />
+          </motion.div>
+        </div>
+      </motion.div>
     </div>
   );
 }
