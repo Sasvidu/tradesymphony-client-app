@@ -1,5 +1,6 @@
 import { Card, Title, DonutChart } from "@tremor/react";
 import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 
 interface Holding {
   ticker: string;
@@ -18,14 +19,16 @@ export function PortfolioDistribution() {
   const { data, isLoading, error } = useQuery<PortfolioDistribution>({
     queryKey: ["portfolioDistribution"],
     queryFn: () => fetch("/api/portfolio/distribution").then((res) => res.json()),
-    refetchInterval: 5000, // Refresh every 5 seconds
+    refetchInterval: 5000,
   });
 
   if (isLoading) {
     return (
-      <Card className="mt-4">
-        <Title>Portfolio Distribution</Title>
-        <div className="h-52 flex items-center justify-center">
+      <Card className="glass-card hover-scale purple-glow">
+        <Title className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">
+          Portfolio Distribution
+        </Title>
+        <div className="h-52 flex items-center justify-center text-purple-400">
           Loading...
         </div>
       </Card>
@@ -34,8 +37,10 @@ export function PortfolioDistribution() {
 
   if (error || !data) {
     return (
-      <Card className="mt-4">
-        <Title>Portfolio Distribution</Title>
+      <Card className="glass-card hover-scale purple-glow">
+        <Title className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">
+          Portfolio Distribution
+        </Title>
         <div className="h-52 flex items-center justify-center text-red-500">
           Error loading portfolio distribution
         </div>
@@ -49,16 +54,27 @@ export function PortfolioDistribution() {
   }));
 
   return (
-    <Card className="mt-4">
-      <Title>Portfolio Distribution</Title>
-      <DonutChart
-        className="mt-6 h-52"
-        data={chartData}
-        category="value"
-        index="name"
-        valueFormatter={(value) => `${value.toFixed(1)}%`}
-        colors={["slate", "violet", "indigo", "rose", "cyan", "amber"]}
-      />
-    </Card>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.1 }}
+    >
+      <Card className="glass-card hover-scale purple-glow">
+        <Title className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">
+          Portfolio Distribution
+        </Title>
+        <DonutChart
+          className="mt-6 h-52"
+          data={chartData}
+          category="value"
+          index="name"
+          valueFormatter={(value) => `${value.toFixed(1)}%`}
+          colors={["purple", "violet", "indigo", "fuchsia", "pink", "rose"]}
+          showAnimation={true}
+          showTooltip={true}
+          variant="donut"
+        />
+      </Card>
+    </motion.div>
   );
 }

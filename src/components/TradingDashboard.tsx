@@ -444,13 +444,11 @@ export function TradingDashboard() {
           </motion.div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
+        <div className="p-4 space-y-4">
+          <div className="w-full">
             <PortfolioDistribution />
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <PortfolioCard
               balance={portfolio.balance}
               totalTrades={portfolio.totalTrades}
@@ -458,68 +456,61 @@ export function TradingDashboard() {
                 activeTrades.filter((t) => t.status === "processing").length
               }
             />
-          </motion.div>
+            <ActiveTrades trades={activeTrades} />
+          </div>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ delay: 0.3 }}
+            className="mt-8"
           >
-            <ActiveTrades trades={activeTrades} />
+            <Card className="glass-card hover-scale purple-glow">
+              <Title className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent mb-6">
+                Trade History
+              </Title>
+              <div className="space-y-4">
+                {allTrades.map((trade) => (
+                  <motion.div
+                    key={trade.id}
+                    className="p-4 glass-card rounded-xl border border-purple-500/10 cursor-pointer hover:border-purple-500/30 transition-all"
+                    onClick={() => router.push(`/trade/${trade.id}`)}
+                    whileHover={{ scale: 1.01 }}
+                  >
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="text-lg font-semibold text-white">
+                          {trade.ticker || "Processing..."}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          {new Date(trade.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        {trade.transactions && trade.transactions.length > 0 && (
+                          <p className="text-purple-400">
+                            ${trade.transactions?.map(t => t.amount).reduce((a, b) => a + b, 0).toFixed(2)}
+                          </p>
+                        )}
+                        <span
+                          className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            trade.status === "completed" || (trade.transactions && trade.transactions.length > 0)
+                              ? "bg-emerald-500/20 text-emerald-400"
+                              : trade.status === "failed"
+                              ? "bg-red-500/20 text-red-400"
+                              : "bg-purple-500/20 text-purple-400"
+                          }`}
+                        >
+                          {trade.transactions && trade.transactions.length > 0 ? `completed` : trade.status}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </Card>
           </motion.div>
         </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mt-8"
-        >
-          <Card className="glass-card hover-scale purple-glow">
-            <Title className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent mb-6">
-              Trade History
-            </Title>
-            <div className="space-y-4">
-              {allTrades.map((trade) => (
-                <motion.div
-                  key={trade.id}
-                  className="p-4 glass-card rounded-xl border border-purple-500/10 cursor-pointer hover:border-purple-500/30 transition-all"
-                  onClick={() => router.push(`/trade/${trade.id}`)}
-                  whileHover={{ scale: 1.01 }}
-                >
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="text-lg font-semibold text-white">
-                        {trade.ticker || "Processing..."}
-                      </p>
-                      <p className="text-sm text-gray-400">
-                        {new Date(trade.createdAt).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      {trade.transactions && trade.transactions.length > 0 && (
-                        <p className="text-purple-400">
-                          ${trade.transactions?.map(t => t.amount).reduce((a, b) => a + b, 0).toFixed(2)}
-                        </p>
-                      )}
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          trade.status === "completed" || (trade.transactions && trade.transactions.length > 0)
-                            ? "bg-emerald-500/20 text-emerald-400"
-                            : trade.status === "failed"
-                            ? "bg-red-500/20 text-red-400"
-                            : "bg-purple-500/20 text-purple-400"
-                        }`}
-                      >
-                        {trade.transactions && trade.transactions.length > 0 ? `completed` : trade.status}
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </Card>
-        </motion.div>
       </motion.div>
     </div>
   );
