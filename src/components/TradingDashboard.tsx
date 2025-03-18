@@ -15,6 +15,7 @@ import { tradingApi } from "../lib/api";
 import { useTradingContext, Trade, Transaction } from "./TradingContext";
 import { useRouter } from "next/navigation";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
+import { StockPerformance } from "./StockPerformance";
 
 interface Portfolio {
   id: string;
@@ -446,6 +447,7 @@ export function TradingDashboard() {
 
         <div className="p-4 space-y-4">
           <div className="w-full">
+            <StockPerformance />
             <PortfolioDistribution />
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
