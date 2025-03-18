@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-query";
 import { PortfolioCard } from "./PortfolioCard";
 import { ActiveTrades } from "./ActiveTrades";
+import { PortfolioDistribution } from "./PortfolioDistribution";
 import { tradingApi } from "../lib/api";
 import { useTradingContext, Trade, Transaction } from "./TradingContext";
 import { useRouter } from "next/navigation";
@@ -449,6 +450,7 @@ export function TradingDashboard() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
+            <PortfolioDistribution />
             <PortfolioCard
               balance={portfolio.balance}
               totalTrades={portfolio.totalTrades}
