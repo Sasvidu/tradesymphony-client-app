@@ -169,7 +169,6 @@ export function StockPerformance() {
               <div className="mt-6">
                 <Text className="mb-2">Price History</Text>
                 <AreaChart
-                  className="h-72 mt-4"
                   data={stockData.chartData}
                   index="date"
                   categories={["price"]}
@@ -178,6 +177,9 @@ export function StockPerformance() {
                   showLegend={false}
                   showAnimation={true}
                   curveType="natural"
+                  yAxisWidth={60}
+                  connectNulls={true}
+                  className="mt-6 h-72 [&_.tremor-AreaChart-path]:!opacity-40"
                 />
               </div>
             </div>
